@@ -8,11 +8,11 @@ import {
   ADD_TO_CART,
   REMOVE_FROM_CART
 } from "../utils/actions";
+import { idbPromise } from "../utils/helpers";
 import { useStoreContext } from "../utils/GlobalState";
 import { QUERY_PRODUCTS } from "../utils/queries";
 import Cart from '../components/Cart';
 import spinner from '../assets/spinner.gif'
-import CartItem from "../components/CartItem";
 
 function Detail() {
   const [state, dispatch] = useStoreContext();
@@ -25,28 +25,36 @@ function Detail() {
   const { products, cart } = state;
 
   const addToCart = () => {
-    const itemInCart = cart.find((CartItem) => CartItem._id === id);
-
-      if (itemInCart) {
-        dispatch({
-          type: UPDATE_CART_QUANTITY,
-          _id: id,
-          purchaseQuantity: parseInt(itemInCart.purchaseQuantity) + 1
-        });
-      } else {
+    const itemInCart = cart.find((cartItem) => cartItem._id === id)
+    if (itemInCart) {
+      dispatch({
+        type: UPDATE_CART_QUANTITY,
+        _id: id,
+        purchaseQuantity: parseInt(itemInCart.purchaseQuantity) + 1
+      });
+      idbPromise('cart', 'put', {
+        ...itemInCart,
+        purchaseQuantity: parseInt(itemInCart.purchaseQuantity) + 1
+      });
+    } else {
       dispatch({
         type: ADD_TO_CART,
         product: { ...currentProduct, purchaseQuantity: 1 }
       });
+      idbPromise('cart', 'put', { ...currentProduct, purchaseQuantity: 1 });
+
     }
-  };
+  }
 
   const removeFromCart = () => {
     dispatch({
       type: REMOVE_FROM_CART,
       _id: currentProduct._id
     });
+
+    idbPromise('cart', 'delete', { ...currentProduct });
   };
+
 
   useEffect(() => {
     if (products.length) {
@@ -56,8 +64,19 @@ function Detail() {
         type: UPDATE_PRODUCTS,
         products: data.products
       });
+
+      data.products.forEach((product) => {
+        idbPromise('products', 'put', product);
+      });
+    } else if (!loading) {
+      idbPromise('products', 'get').then((indexedProducts) => {
+        dispatch({
+          type: UPDATE_PRODUCTS,
+          products: indexedProducts
+        });
+      });
     }
-  }, [products, data, dispatch, id]);
+  }, [products, data, loading, dispatch, id]);
 
   return (
     <>
